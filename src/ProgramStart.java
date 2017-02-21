@@ -5,7 +5,10 @@ import java.awt.Point;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -18,6 +21,7 @@ import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLEventListener;
+import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.glu.GLU;
@@ -76,11 +80,11 @@ public class ProgramStart implements GLEventListener {
 	private float width;
 	private float height;
 	
-	private int camMatLoc;
-	private int projMatLoc;
-	private int worldMatLoc;
-	private int colorLoc;
-	private int posLoc;
+	private int camMatLoc = -1;
+	private int projMatLoc = -1;
+	private int worldMatLoc = -1;
+	private int colorLoc = -1;
+	private int posLoc = -1;
 	
 	public void init(GLAutoDrawable drawable) {
 		gl = drawable.getGL().getGL2(); 
@@ -101,22 +105,33 @@ public class ProgramStart implements GLEventListener {
 		int vertexShader = gl.glCreateShader (GL2.GL_VERTEX_SHADER);
 		gl.glShaderSource (vertexShader, 1, vertexSource, null);
 		gl.glCompileShader (vertexShader);
+		checkShaderLogInfo(gl, vertexShader);
 		
 		int fragmentShader = gl.glCreateShader (GL2.GL_FRAGMENT_SHADER);
 		gl.glShaderSource (fragmentShader, 1, fragmentSource, null);
 		gl.glCompileShader (fragmentShader);
+		checkShaderLogInfo(gl, fragmentShader);
 		
 		// Create and link program
 		int program = gl.glCreateProgram ();
 		gl.glAttachShader (program, vertexShader);
 		gl.glAttachShader (program, fragmentShader);
 		gl.glLinkProgram (program);
+		gl.glValidateProgram(program);
+		
+		IntBuffer linkstatus = Buffers.newDirectIntBuffer(1);
+		gl.glGetProgramiv(program, GL2.GL_LINK_STATUS, linkstatus);
+		if (linkstatus.get(0) == GL2.GL_FALSE){
+			System.err.println("linking failed");
+		}
 
 		projMatLoc = gl.glGetUniformLocation(program, "mProj");
 		camMatLoc = gl.glGetUniformLocation(program, "mView");
 		worldMatLoc = gl.glGetUniformLocation(program, "mWorld");
 		colorLoc = gl.glGetUniformLocation(program, "vertColor");
 		posLoc = gl.glGetAttribLocation(program, "vertPosition");
+		
+		gl.glUseProgram(program);
 		
 	}
 
@@ -126,7 +141,6 @@ public class ProgramStart implements GLEventListener {
 
 	public void display(GLAutoDrawable drawable) {
 		gl = drawable.getGL().getGL2();
-		//mainRenderer.gl = gl;
 
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 		
@@ -134,13 +148,19 @@ public class ProgramStart implements GLEventListener {
 		worldMat.loadIdentity();
 		Matrix4 camMat = new Matrix4();
 		camMat.loadIdentity();
+		camMat.translate(0.0f, 0.0f, -5.0f);
 		Matrix4 projMat = new Matrix4();
 		projMat.makePerspective(45.0f, (float) width / (float) height, 0.1f, 1000f);
 		
-		gl.glUniform3fv(colorLoc, 3 * Buffers.SIZEOF_FLOAT, FloatBuffer.wrap(new float[]{1.0f, 1.0f, 1.0f}));
-		gl.glUniformMatrix4fv(projMatLoc, 16 * Buffers.SIZEOF_FLOAT, true, FloatBuffer.wrap(projMat.getMatrix()));
-		gl.glUniformMatrix4fv(camMatLoc, 16 * Buffers.SIZEOF_FLOAT, true, FloatBuffer.wrap(camMat.getMatrix()));
-		gl.glUniformMatrix4fv(worldMatLoc, 16 * Buffers.SIZEOF_FLOAT, true, FloatBuffer.wrap(worldMat.getMatrix()));
+		FloatBuffer c = FloatBuffer.wrap(new float[]{1.0f, 0.5f, 1.0f});
+		FloatBuffer proj =  Buffers.newDirectFloatBuffer(projMat.getMatrix());
+		FloatBuffer cam = Buffers.newDirectFloatBuffer(camMat.getMatrix());
+		FloatBuffer world = Buffers.newDirectFloatBuffer(worldMat.getMatrix());
+		
+		gl.glUniform3fv(colorLoc, c.capacity() * Buffers.SIZEOF_FLOAT, c);
+		gl.glUniformMatrix4fv(projMatLoc, proj.capacity() * Buffers.SIZEOF_FLOAT, true, proj);
+		gl.glUniformMatrix4fv(camMatLoc, cam.capacity() * Buffers.SIZEOF_FLOAT, true, cam);
+		gl.glUniformMatrix4fv(worldMatLoc, world.capacity() * Buffers.SIZEOF_FLOAT, true, world);
 		
 		FloatBuffer vertexBuffer = Buffers.newDirectFloatBuffer(vertices);
 		gl.glEnableVertexAttribArray (posLoc);
@@ -212,4 +232,23 @@ public class ProgramStart implements GLEventListener {
 		byte[] encoded = Files.readAllBytes(Paths.get(path));
 		return new String(encoded, encoding);
 	}
+	
+	private static void checkShaderLogInfo(GL2 inGL, int inShaderObjectID) {
+        IntBuffer tReturnValue = Buffers.newDirectIntBuffer(1);
+        inGL.glGetShaderiv(inShaderObjectID, GL2.GL_COMPILE_STATUS, tReturnValue);
+        if (tReturnValue.get(0) == GL2.GL_FALSE) {
+                inGL.glGetShaderiv(inShaderObjectID, GL2.GL_INFO_LOG_LENGTH, tReturnValue);
+                final int length = tReturnValue.get(0);
+                String out = null;
+                if (length > 0) {
+                    final ByteBuffer infoLog = Buffers.newDirectByteBuffer(length);
+                    inGL.glGetShaderInfoLog(inShaderObjectID, infoLog.limit(), tReturnValue, infoLog);
+                    final byte[] infoBytes = new byte[length];
+                    infoLog.get(infoBytes);
+                    out = new String(infoBytes);
+                    System.out.print(out);
+                }
+                throw new GLException("Error during shader compilation: " + out);
+            } 
+    }
 }
