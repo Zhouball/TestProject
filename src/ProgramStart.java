@@ -1,30 +1,19 @@
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
-import java.awt.GraphicsEnvironment;
 import java.awt.Point;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.File;
 import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-import javax.swing.AbstractAction;
-import javax.swing.ActionMap;
-import javax.swing.InputMap;
-import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
-import javax.swing.KeyStroke;
 
 import com.jogamp.common.nio.Buffers;
-import com.jogamp.graph.geom.Vertex;
-import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLCapabilities;
@@ -33,15 +22,11 @@ import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.glu.GLU;
 import com.jogamp.opengl.math.Matrix4;
-import com.jogamp.opengl.math.Quaternion;
 import com.jogamp.opengl.util.FPSAnimator;
-import com.jogamp.opengl.util.texture.Texture;
-import com.jogamp.opengl.util.texture.TextureIO;
 
 
 public class ProgramStart implements GLEventListener {
 	
-	// private static GraphicsEnvironment graphicsEnvironment;
 	private static boolean isFullScreen = false;
 	public static DisplayMode dm, dm_old;
 	private static Dimension xgraphic;
